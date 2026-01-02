@@ -24,9 +24,9 @@ const SpotifyIcon = () => (
 
 const SocialIcons = () => {
   const socials = [
-    { icon: <DiscordIcon />, href: "https://discord.gg/yourserver", label: "Discord" },
-    { icon: <Instagram className="w-6 h-6" />, href: "https://instagram.com/yourprofile", label: "Instagram" },
-    { icon: <SpotifyIcon />, href: "https://open.spotify.com/user/yourprofile", label: "Spotify" },
+    { icon: <DiscordIcon />, href: "https://discord.gg/rdota2", label: "Discord" },
+    { icon: <Instagram className="w-6 h-6" />, href: "https://instagram.com/_pirsuu/", label: "Instagram" },
+    { icon: <SpotifyIcon />, href: "https://open.spotify.com/user/nntqcoksqfcer5awn5lpv3uwq", label: "Spotify" },
   ];
 
   return (
