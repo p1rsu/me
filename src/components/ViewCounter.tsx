@@ -18,7 +18,7 @@ const ViewCounter = () => {
 
       if (currentData) {
         const newCount = currentData.view_count + 1;
-        
+
         // Update the count
         await supabase
           .from("profile_views")
@@ -30,6 +30,27 @@ const ViewCounter = () => {
     };
 
     incrementAndFetch();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel("profile_views_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profile_views",
+          filter: `id=eq.${VIEW_ID}`,
+        },
+        (payload) => {
+          setViewCount(payload.new.view_count);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   if (viewCount === null) return null;
