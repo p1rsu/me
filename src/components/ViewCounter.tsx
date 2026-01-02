@@ -31,19 +31,20 @@ const ViewCounter = () => {
 
     incrementAndFetch();
 
-    // Subscribe to real-time updates
+    // Subscribe to realtime updates
     const channel = supabase
-      .channel("profile_views_changes")
+      .channel('profile-views-realtime')
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "UPDATE",
-          schema: "public",
-          table: "profile_views",
-          filter: `id=eq.${VIEW_ID}`,
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profile_views',
+          filter: `id=eq.${VIEW_ID}`
         },
         (payload) => {
-          setViewCount(payload.new.view_count);
+          const newData = payload.new as { view_count: number };
+          setViewCount(newData.view_count);
         }
       )
       .subscribe();
