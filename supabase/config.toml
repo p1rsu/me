@@ -1,0 +1,4 @@
+project_id = "ffsdrbywxylnbgtpguat"
+
+[functions.steamgriddb-icon]
+verify_jwt = false
