@@ -9,6 +9,10 @@ import { useDiscordPresence } from "@/hooks/useDiscordPresence";
 const DISCORD_USER_ID = "595176626535268363";
 const DISCORD_USERNAME = "https.pears"; // Fallback username if Lanyard is not available
 
+// Other half configuration
+const OTHER_HALF_USER_ID = "1281658337464946700";
+const OTHER_HALF_LINK = "https://yurixine.github.io/me/";
+
 // Background configuration - set url to "" for default black background
 // For video: { url: "/your-video.mp4", type: "video" }
 // For image: { url: "/your-image.jpg", type: "image" }
@@ -32,6 +36,9 @@ const Index = () => {
     { username: DISCORD_USERNAME }
   );
 
+  // Fetch other half's avatar
+  const { avatarUrl: otherHalfAvatarUrl } = useDiscordPresence(OTHER_HALF_USER_ID);
+
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center">
       <Background url={BACKGROUND_CONFIG.url || null} type={BACKGROUND_CONFIG.url ? BACKGROUND_CONFIG.type : null} />
@@ -43,21 +50,42 @@ const Index = () => {
         <div className="animate-fade-in-up flex flex-col items-center gap-4" style={{ animationDelay: "0.1s" }}>
           {/* Discord Avatar with Glow */}
           <div className="relative group">
-            <div className="absolute inset-0 rounded-full bg-foreground/20 blur-xl group-hover:bg-foreground/40 transition-all duration-500 animate-pulse-glow" />
+            {/* Other Half Avatar - Hidden behind, slides up on hover */}
+            <a
+              href={OTHER_HALF_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute left-1/2 -translate-x-1/2 top-0 z-0 flex flex-col items-center transition-all duration-500 ease-out opacity-0 group-hover:opacity-100 group-hover:-translate-y-16"
+            >
+              {/* "My other half" text */}
+              <span className="text-foreground/60 text-xs tracking-[0.15em] uppercase font-light mb-2 whitespace-nowrap transition-all duration-300 group-hover:text-foreground/80">
+                my other half
+              </span>
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-foreground/20 blur-xl group-hover:bg-foreground/40 transition-all duration-500 animate-pulse-glow" />
+                <img
+                  src={otherHalfAvatarUrl}
+                  alt="Other Half Avatar"
+                  className="relative w-20 h-20 rounded-full border-2 border-foreground/30 object-cover shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] hover:border-foreground/50 transition-all duration-300 hover:scale-105"
+                />
+              </div>
+            </a>
+
+            <div className="absolute inset-0 rounded-full bg-foreground/20 blur-xl group-hover:bg-foreground/40 transition-all duration-500 animate-pulse-glow z-10" />
             <img
               src={avatarUrl}
               alt="Discord Avatar"
-              className="relative w-24 h-24 rounded-full border-2 border-foreground/30 object-cover shadow-[0_0_20px_rgba(255,255,255,0.3)] group-hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all duration-300"
+              className="relative w-24 h-24 rounded-full border-2 border-foreground/30 object-cover shadow-[0_0_20px_rgba(255,255,255,0.3)] group-hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all duration-300 z-20"
             />
             {/* Status indicator */}
-            <div className="absolute -bottom-0.5 -right-0.5 bg-background rounded-full p-1.5 border-2 border-background">
-              <div 
+            <div className="absolute -bottom-0.5 -right-0.5 bg-background rounded-full p-1.5 border-2 border-background z-30">
+              <div
                 className={cn(
                   "w-5 h-5 rounded-full transition-all duration-300",
                   statusStyles[status].bg,
                   statusStyles[status].glow,
                   status === "online" && "animate-pulse"
-                )} 
+                )}
               />
             </div>
           </div>
