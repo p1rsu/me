@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye } from "lucide-react";
 
@@ -6,9 +6,55 @@ const VIEW_ID = "00000000-0000-0000-0000-000000000001";
 
 const ViewCounter = () => {
   const [viewCount, setViewCount] = useState<number | null>(null);
+  const hasIncrementedRef = useRef(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  const fetchViewCount = useCallback(async () => {
+    const { data } = await supabase
+      .from("profile_views")
+      .select("view_count")
+      .eq("id", VIEW_ID)
+      .single();
+
+    if (data) {
+      setViewCount(data.view_count);
+    }
+  }, []);
+
+  const setupRealtimeChannel = useCallback(() => {
+    // Clean up existing channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    const channel = supabase
+      .channel('profile-views-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profile_views',
+          filter: `id=eq.${VIEW_ID}`
+        },
+        (payload) => {
+          const newData = payload.new as { view_count: number };
+          setViewCount(newData.view_count);
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+  }, []);
 
   useEffect(() => {
     const incrementAndFetch = async () => {
+      // Prevent duplicate increments
+      if (hasIncrementedRef.current) {
+        return;
+      }
+      hasIncrementedRef.current = true;
+
       // First, get current count
       const { data: currentData } = await supabase
         .from("profile_views")
@@ -30,29 +76,29 @@ const ViewCounter = () => {
     };
 
     incrementAndFetch();
+    setupRealtimeChannel();
 
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel('profile-views-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profile_views',
-          filter: `id=eq.${VIEW_ID}`
-        },
-        (payload) => {
-          const newData = payload.new as { view_count: number };
-          setViewCount(newData.view_count);
-        }
-      )
-      .subscribe();
+    // Handle visibility change
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        return;
+      }
+
+      // Tab became visible - refresh view count and re-subscribe
+      fetchViewCount();
+      setupRealtimeChannel();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [fetchViewCount, setupRealtimeChannel]);
 
   if (viewCount === null) return null;
 

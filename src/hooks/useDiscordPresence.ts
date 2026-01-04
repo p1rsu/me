@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface DiscordUser {
   id: string;
@@ -66,75 +66,144 @@ export const useDiscordPresence = (userId: string, fallback?: FallbackConfig) =>
   const [error, setError] = useState<string | null>(null);
   const [isMonitored, setIsMonitored] = useState(true);
 
-  useEffect(() => {
-    const fetchPresence = async () => {
-      try {
-        const response = await fetch(`https://api.lanyard.rest/v1/users/${userId}`);
-        const result: LanyardResponse = await response.json();
-        
-        if (result.success) {
-          setData(result.data);
-          setIsMonitored(true);
-        } else {
-          setIsMonitored(false);
-          setError(result.error?.message || "Failed to fetch Discord presence");
-        }
-      } catch (err) {
+  const wsRef = useRef<WebSocket | null>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 10;
+  const maxReconnectDelay = 30000;
+
+  const fetchPresence = useCallback(async () => {
+    try {
+      const response = await fetch(`https://api.lanyard.rest/v1/users/${userId}`);
+      const result: LanyardResponse = await response.json();
+
+      if (result.success) {
+        setData(result.data);
+        setIsMonitored(true);
+        setError(null);
+      } else {
         setIsMonitored(false);
-        setError("Error fetching Discord data");
-      } finally {
-        setLoading(false);
+        setError(result.error?.message || "Failed to fetch Discord presence");
+      }
+    } catch (err) {
+      setIsMonitored(false);
+      setError("Error fetching Discord data");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  const clearHeartbeat = useCallback(() => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+  }, []);
+
+  const closeWebSocket = useCallback(() => {
+    clearHeartbeat();
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, [clearHeartbeat]);
+
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    closeWebSocket();
+
+    const ws = new WebSocket("wss://api.lanyard.rest/socket");
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      reconnectAttemptsRef.current = 0;
+      ws.send(JSON.stringify({
+        op: 2,
+        d: { subscribe_to_id: userId }
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.op === 1) {
+        // Clear any existing heartbeat before setting a new one
+        clearHeartbeat();
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ op: 3 }));
+          }
+        }, message.d.heartbeat_interval);
+      }
+      if (message.op === 0) {
+        if (message.t === "INIT_STATE" || message.t === "PRESENCE_UPDATE") {
+          setData(message.d);
+          setIsMonitored(true);
+          setError(null);
+        }
       }
     };
 
+    ws.onerror = () => {
+      setIsMonitored(false);
+    };
+
+    ws.onclose = () => {
+      clearHeartbeat();
+
+      // Attempt reconnection with exponential backoff
+      if (reconnectAttemptsRef.current < maxReconnectAttempts && !document.hidden) {
+        const delay = Math.min(
+          1000 * Math.pow(2, reconnectAttemptsRef.current),
+          maxReconnectDelay
+        );
+        reconnectAttemptsRef.current++;
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, delay);
+      }
+    };
+  }, [userId, clearHeartbeat, closeWebSocket]);
+
+  useEffect(() => {
     fetchPresence();
 
-    // Set up WebSocket for real-time updates (only if monitored)
-    let ws: WebSocket | null = null;
-    
-    const connectWebSocket = () => {
-      ws = new WebSocket("wss://api.lanyard.rest/socket");
-      
-      ws.onopen = () => {
-        ws?.send(JSON.stringify({
-          op: 2,
-          d: { subscribe_to_id: userId }
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message.op === 1) {
-          // Heartbeat
-          setInterval(() => {
-            ws?.send(JSON.stringify({ op: 3 }));
-          }, message.d.heartbeat_interval);
-        }
-        if (message.op === 0) {
-          if (message.t === "INIT_STATE" || message.t === "PRESENCE_UPDATE") {
-            setData(message.d);
-            setIsMonitored(true);
-          }
-        }
-      };
-
-      ws.onerror = () => {
-        setIsMonitored(false);
-      };
-    };
-
-    // Only connect WebSocket after initial fetch succeeds
+    // Connect WebSocket after initial fetch
     const timer = setTimeout(() => {
-      if (isMonitored) {
+      connectWebSocket();
+    }, 1000);
+
+    // Handle visibility change
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        return;
+      }
+
+      // Tab became visible - fetch fresh data
+      fetchPresence();
+
+      // Reconnect WebSocket if disconnected
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        reconnectAttemptsRef.current = 0;
         connectWebSocket();
       }
-    }, 1000);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearTimeout(timer);
-      ws?.close();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      closeWebSocket();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [userId]);
+  }, [userId, fetchPresence, connectWebSocket, closeWebSocket]);
 
   const getAvatarUrl = () => {
     if (!data?.discord_user) {
