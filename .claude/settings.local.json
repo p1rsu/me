@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(supabase link:*)"
+      "Bash(supabase link:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(supabase secrets:*)",
+      "Bash(supabase functions:*)",
+      "Bash(curl:*)"
     ]
   }
 }
