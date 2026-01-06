@@ -2,7 +2,6 @@ import Background from "@/components/Background";
 import SocialIcons from "@/components/SocialIcons";
 import ViewCounter from "@/components/ViewCounter";
 import DiscordActivity from "@/components/DiscordActivity";
-import YouTubeMusicPlayer from "@/components/YouTubeMusicPlayer";
 import { cn } from "@/lib/utils";
 import { useDiscordPresence } from "@/hooks/useDiscordPresence";
 
@@ -22,13 +21,6 @@ const BACKGROUND_CONFIG = {
   type: "image" as "video" | "image",
 };
 
-// Music Player configuration
-// Supports YouTube videos and playlists
-// Examples:
-//   - Video: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" or "https://youtu.be/dQw4w9WgXcQ"
-//   - Playlist: "https://www.youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf"
-// Set to "" to hide the music player
-const MUSIC_URL = "https://youtu.be/Z0W_LeF44f8";
 // ========================================
 
 // Status colors and glows for the indicator
@@ -122,13 +114,6 @@ const Index = () => {
         <div className="animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
           <SocialIcons />
         </div>
-
-        {/* Music Player */}
-        {MUSIC_URL && (
-          <div className="animate-fade-in-up" style={{ animationDelay: "0.5s" }}>
-            <YouTubeMusicPlayer url={MUSIC_URL} />
-          </div>
-        )}
 
       </main>
     </div>
