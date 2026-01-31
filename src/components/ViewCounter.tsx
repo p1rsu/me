@@ -2,22 +2,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye } from "lucide-react";
 
-const VIEW_ID = "00000000-0000-0000-0000-000000000001";
-
 const ViewCounter = () => {
   const [viewCount, setViewCount] = useState<number | null>(null);
   const hasIncrementedRef = useRef(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchViewCount = useCallback(async () => {
-    const { data } = await supabase
+    const { count } = await supabase
       .from("profile_views")
-      .select("view_count")
-      .eq("id", VIEW_ID)
-      .single();
+      .select("*", { count: "exact", head: true });
 
-    if (data) {
-      setViewCount(data.view_count);
+    if (count !== null) {
+      setViewCount(count);
     }
   }, []);
 
@@ -32,14 +28,13 @@ const ViewCounter = () => {
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: 'INSERT',
           schema: 'public',
-          table: 'profile_views',
-          filter: `id=eq.${VIEW_ID}`
+          table: 'profile_views'
         },
-        (payload) => {
-          const newData = payload.new as { view_count: number };
-          setViewCount(newData.view_count);
+        () => {
+          // New view inserted, increment the count
+          setViewCount((prev) => (prev !== null ? prev + 1 : null));
         }
       )
       .subscribe();
@@ -48,34 +43,21 @@ const ViewCounter = () => {
   }, []);
 
   useEffect(() => {
-    const incrementAndFetch = async () => {
+    const recordViewAndFetch = async () => {
       // Prevent duplicate increments
       if (hasIncrementedRef.current) {
         return;
       }
       hasIncrementedRef.current = true;
 
-      // First, get current count
-      const { data: currentData } = await supabase
-        .from("profile_views")
-        .select("view_count")
-        .eq("id", VIEW_ID)
-        .single();
+      // Insert a new view record
+      await supabase.from("profile_views").insert({});
 
-      if (currentData) {
-        const newCount = currentData.view_count + 1;
-
-        // Update the count
-        await supabase
-          .from("profile_views")
-          .update({ view_count: newCount, updated_at: new Date().toISOString() })
-          .eq("id", VIEW_ID);
-
-        setViewCount(newCount);
-      }
+      // Fetch the total count
+      await fetchViewCount();
     };
 
-    incrementAndFetch();
+    recordViewAndFetch();
     setupRealtimeChannel();
 
     // Handle visibility change
